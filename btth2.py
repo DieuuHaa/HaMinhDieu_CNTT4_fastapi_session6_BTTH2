@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI
 from pydantic import BaseModel
+
 app = FastAPI()
 
 students = [
@@ -14,88 +15,110 @@ class Student(BaseModel):
     email: str
     age: int
 
-def find_student(student_id):
-    for student in students:
-        if student["id"] == student_id:
-            return student
-    return None
-
 @app.post("/students")
 def add_student(student: Student):
-    if student.name.strip() == "":
-        raise HTTPException(status_code=400, detail="Name cannot be empty")
-    if student.email.strip() == "":
-        raise HTTPException(status_code=400, detail="Email cannot be empty")
-    if student.age <= 0:
-        raise HTTPException(status_code=400, detail="Age must be greater than 0")
+
     for s in students:
         if s["code"] == student.code:
-            raise HTTPException(status_code=400, detail="Code already exists")
-    new_student = student.dict()
-    new_student["id"] = len(students) + 1
+            return {"message": "Code đã tồn tại"}
+
+    if student.name == "":
+        return {"message": "Name không được rỗng"}
+
+    if student.email == "":
+        return {"message": "Email không được rỗng"}
+
+    if student.age <= 0:
+        return {"message": "Age phải lớn hơn 0"}
+
+    new_student = {
+        "id": len(students) + 1,
+        "code": student.code,
+        "name": student.name,
+        "email": student.email,
+        "age": student.age
+    }
+
     students.append(new_student)
+
     return {
-        "message": "Student added successfully",
-        "student": new_student
+        "message": "Thêm học viên thành công",
+        "data": new_student
     }
 
 @app.get("/students")
-def get_students(
-    keyword: str = Query(None),
-    min_age: int = Query(None),
-    max_age: int = Query(None)
-):
+def get_students(keyword: str = None,
+                 min_age: int = None,
+                 max_age: int = None):
+
     result = students
+
     if keyword:
-        keyword = keyword.lower()
         result = [
             s for s in result
-            if keyword in s["name"].lower()
-            or keyword in s["code"].lower()
-            or keyword in s["email"].lower()
+            if keyword.lower() in s["name"].lower()
+            or keyword.lower() in s["code"].lower()
+            or keyword.lower() in s["email"].lower()
         ]
+
     if min_age is not None:
         result = [s for s in result if s["age"] >= min_age]
+
     if max_age is not None:
         result = [s for s in result if s["age"] <= max_age]
-    return result
+
+    return {
+        "message": "Danh sách học viên",
+        "data": result
+    }
 
 @app.get("/students/{student_id}")
 def get_student(student_id: int):
-    student = find_student(student_id)
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
-    return student
+
+    for student in students:
+        if student["id"] == student_id:
+            return student
+
+    return {"message": "Student not found"}
 
 @app.put("/students/{student_id}")
-def update_student(student_id: int, updated_student: Student):
-    student = find_student(student_id)
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
-    if updated_student.name.strip() == "":
-        raise HTTPException(status_code=400, detail="Name cannot be empty")
-    if updated_student.email.strip() == "":
-        raise HTTPException(status_code=400, detail="Email cannot be empty")
-    if updated_student.age <= 0:
-        raise HTTPException(status_code=400, detail="Age must be greater than 0")
-    for s in students:
-        if s["code"] == updated_student.code and s["id"] != student_id:
-            raise HTTPException(status_code=400, detail="Code already exists")
-    student["code"] = updated_student.code
-    student["name"] = updated_student.name
-    student["email"] = updated_student.email
-    student["age"] = updated_student.age
-    return {
-        "message": "Student updated successfully",
-        "student": student
-    }
+def update_student(student_id: int, new_student: Student):
+
+    for student in students:
+
+        if student["id"] == student_id:
+
+            for s in students:
+                if s["code"] == new_student.code and s["id"] != student_id:
+                    return {"message": "Code đã tồn tại"}
+
+            if new_student.name == "":
+                return {"message": "Name không được rỗng"}
+
+            if new_student.email == "":
+                return {"message": "Email không được rỗng"}
+
+            if new_student.age <= 0:
+                return {"message": "Age phải lớn hơn 0"}
+
+            student["code"] = new_student.code
+            student["name"] = new_student.name
+            student["email"] = new_student.email
+            student["age"] = new_student.age
+
+            return {
+                "message": "Cập nhật thành công",
+                "data": student
+            }
+
+    return {"message": "Student not found"}
 
 @app.delete("/students/{student_id}")
 def delete_student(student_id: int):
-    student = find_student(student_id)
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
-    students.remove(student)
-    return {
-        "message": "Student deleted successfully"
-    }
+
+    for student in students:
+        if student["id"] == student_id:
+            students.remove(student)
+            return {"message": "Xóa thành công"}
+
+    return {"message": "Student not found"}
